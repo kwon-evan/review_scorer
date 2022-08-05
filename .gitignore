@@ -1,3 +1,7 @@
 /review_scorer/data/learning_total.json
 /review_scorer/data/pohang_tripadvisor.json
 /review_scorer/data/SentiWord_info.json
+/review_scorer/data/data_origin.csv
+/review_scorer/.ipynb_checkpoints
+/review-scorer/__pycache__
+/.ipynb_checkpoints
