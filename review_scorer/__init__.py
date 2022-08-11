@@ -1,1 +1,1 @@
-from .review_scorer import ReviewScorer
+from .doc2category import Doc2Category
