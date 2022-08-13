@@ -103,8 +103,7 @@ class Doc2Category(Word2Vec):
         self.category_list = categories.keys()
         self.is_tagged = True
 
-    def score_review(self,
-                     tokenized_review: str) -> dict:
+    def score_review(self, tokenized_review: str) -> dict:
         """
         Scoring Reviews By Category.
         """
