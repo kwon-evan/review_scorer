@@ -9,6 +9,8 @@ from typing import List, Union, Tuple
 import pandas as pd
 from gensim.models import Word2Vec, KeyedVectors
 from anytree import Node, RenderTree
+from sklearn.preprocessing import minmax_scale
+from tqdm.auto import tqdm
 
 MAX_WORDS_IN_BATCH = 10000
 SENTIMENTAL_DICTIONARY_PATH = '../data/SentiWord_info.json'
@@ -35,7 +37,7 @@ class Doc2Category(Word2Vec):
             shrink_windows=shrink_windows
         )
         self.word_roots = None
-        self.category_list = None
+        self.category = None
         self.is_tagged = False
 
         if not hasattr(self, 'wv'):  # set unless subclass already set (eg: FastText)
@@ -81,26 +83,34 @@ class Doc2Category(Word2Vec):
         for parent in parents:
             self.make_tree(parent.children, width, depth)
 
-    def get_similar_words_index(self, category: str):
-        if category not in [root.name for root in self.word_roots]:
-            raise Exception(f'There\'s no name {category}')
-
-        words_set: set
+    def __count_root_words(self):
+        __word_count_dict = dict()
         for root in self.word_roots:
-            if root.name is category:
-                words_set = set(map(lambda x: x.data, root.descendants))
-
-        return self.senti['word'].isin(words_set) | self.senti['word_root'].isin(words_set)
+            words = [child.data for child in root.descendants]
+            words_count = {word: words.count(word) for word in set(words)}
+            __word_count_dict[root.name] = words_count
+        return __word_count_dict
 
     def tag(self, categories: dict, width: int = 3, depth: int = 3):
         self.init_tree(categories=categories)
         self.make_tree(self.word_roots, width=width, depth=depth)
+        __word_count_dict = self.__count_root_words()
 
-        for category, words in categories.items():
-            self.senti[category] = False
-            self.senti.loc[self.get_similar_words_index(category=category), category] = True
-            logger.info(f'category \"{category}\" tagged')
-        self.category_list = categories.keys()
+        # word counts to senti dict
+        for category, words in __word_count_dict.items():
+            self.senti[category] = 0
+            for word, count in tqdm(words.items(), desc=category):
+                condition = (self.senti['word'] == word) | (self.senti['word_root'] == word)
+                self.senti.loc[condition, category] += count
+
+        # scaling
+        self.senti.loc[:, categories.keys()] = minmax_scale(self.senti.loc[:, categories.keys()], axis=1)
+
+        # multiply polarity
+        for idx in tqdm(range(len(self.senti)), desc='polarity'):
+            self.senti.loc[idx, categories.keys()] *= float(self.senti.loc[idx, 'polarity'])
+
+        self.category = categories.keys()
         self.is_tagged = True
 
     def score_review(self, tokenized_review: str) -> dict:
@@ -113,7 +123,4 @@ class Doc2Category(Word2Vec):
 
         _scored = self.senti.loc[self.senti.word.isin(tokenized_review)].copy()
 
-        return {
-            category_name: _scored.loc[_scored[category_name], 'polarity'].sum()
-            for category_name in self.category_list
-        }
+        return {category: sum(_scored[category]) for category in self.category}
