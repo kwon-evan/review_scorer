@@ -121,6 +121,7 @@ class Doc2Category(Word2Vec):
             raise Exception('Sentimental Dictionary of Review Scorer is not tagged yet. '
                             'Use method ReviewScorer.tag().')
 
-        _scored = self.senti.loc[self.senti.word.isin(tokenized_review)].copy()
+        _scored = self.senti.loc[self.senti.word.isin(tokenized_review)]
 
-        return {category: sum(_scored[category]) for category in self.category}
+        return {category: _scored.loc[_scored.loc[:, category] > 0, category].mean()
+                for category in self.category}
